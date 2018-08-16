@@ -65,6 +65,7 @@ do
     esac
 done < <(echo | openssl s_client -CAfile $TMPFILE -connect $OPENSSL_URL -servername $STRIPPED_CATTLE_SERVER_NOPORT)
 
+IFS=""
 CERTTMPFILE=$(mktemp)
 echo | openssl s_client -showcerts -CAfile $TMPFILE -connect $OPENSSL_URL -servername $STRIPPED_CATTLE_SERVER_NOPORT 2>/dev/null | openssl x509 -outform PEM > $CERTTMPFILE
 
@@ -79,7 +80,9 @@ echo "INFO: Found CN ${CN}"
 if [[ -n $SANS ]]; then
   echo "INFO: Found SANS: ${SANS}"
 fi
-if [[ $CN = *"${STRIPPED_CATTLE_SERVER_NOPORT}"* ]]; then
+if [[ $CN = *"*"* ]]; then
+  echo "OK: Wildcard certificate found (${CN})"
+elif [[ $CN = *"${STRIPPED_CATTLE_SERVER_NOPORT}"* ]]; then
   echo "OK: ${STRIPPED_CATTLE_SERVER_NOPORT} is equal to ${CN}"
 elif [[ $SANS = *"${STRIPPED_CATTLE_SERVER_NOPORT}"* ]]; then
   echo "OK: ${STRIPPED_CATTLE_SERVER_NOPORT} was found in ${SANS}"
@@ -93,7 +96,6 @@ if [[ -n $CERTCHAIN ]]; then
   cert-chain-resolver -o /certs/fullchain.pem $CERTTMPFILE
 fi
 
-IFS=""
 echo $(openssl x509 -inform pem -noout -text -certopt no_signame,no_pubkey,no_sigdump,no_aux,no_extensions -in $CERTTMPFILE)
 
 rm -f $CERTTMPFILE
