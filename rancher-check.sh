@@ -25,29 +25,29 @@ STRIPPED_CATTLE_SERVER_NOPORT=$(echo $STRIPPED_CATTLE_SERVER | sed -e 's/:.*//')
 # Check DNS
 DNS=$(dig $STRIPPED_CATTLE_SERVER_NOPORT +short)
 if [[ $DNS == "" ]]; then
-  echo "Can't lookup ${STRIPPED_CATTLE_SERVER_NOPORT} using resolv.conf"
+  echo "ERR: Can't lookup ${STRIPPED_CATTLE_SERVER_NOPORT} using resolv.conf"
   echo "$(cat /etc/resolv.conf | grep -v ^#)"
   exit 1
 fi
 
-echo "DNS for ${STRIPPED_CATTLE_SERVER_NOPORT} is ${DNS}"
+echo "OK: DNS for ${STRIPPED_CATTLE_SERVER_NOPORT} is ${DNS}"
 
 # Checking ping endpoint (insecure)
 PINGRESPONSE=$(curl -k -s -fL $CATTLE_SERVER/ping)
 if [[ $PINGRESPONSE != "pong" ]]; then
-  echo "Response from ${CATTLE_SERVER}/ping is not pong:"
+  echo "ERR: Response from ${CATTLE_SERVER}/ping is not pong:"
   echo "$(curl -k -i -o - $CATTLE_SERVER/ping)"
   exit 1
+else
+  echo "OK: Response from ${CATTLE_SERVER}/ping is pong"
 fi
 
-# Check certificate chain
 TMPFILE=$(mktemp)
 curl -k -s -fL $CATTLE_SERVER/v3/settings/cacerts | jq -r .value > $TMPFILE
 
 CACHECKSUM=$(sha256sum $TMPFILE | awk '{print $1}')
-echo "CA checksum from ${CATTLE_SERVER}/v3/settings/cacerts is $CACHECKSUM"
+echo "INFO: CA checksum from ${CATTLE_SERVER}/v3/settings/cacerts is $CACHECKSUM"
 
-# From https://gist.github.com/hilbix/bde7c02009544faed7a1
 # Check if port is present in $STRIPPED_CATTLE_SERVER
 if [[ $STRIPPED_CATTLE_SERVER = *":"* ]]; then
     OPENSSL_URL=$STRIPPED_CATTLE_SERVER
@@ -55,11 +55,13 @@ else
     OPENSSL_URL="${STRIPPED_CATTLE_SERVER}:443"
 fi
 
+# Check certificate chain
+# From https://gist.github.com/hilbix/bde7c02009544faed7a1
 while read -r line
 do
     case "$line" in
-    'Verify return code: 0 (ok)')   echo "Certificate chain is complete";;
-    'Verify return code: '*)    echo "Certificate chain is not complete";;
+    'Verify return code: 0 (ok)')   echo "OK: Certificate chain is complete";;
+    'Verify return code: '*)    echo "ERR: Certificate chain is not complete" && export CERTCHAIN=1;;
     esac
 done < <(echo | openssl s_client -CAfile $TMPFILE -connect $OPENSSL_URL -servername $STRIPPED_CATTLE_SERVER_NOPORT)
 
@@ -68,8 +70,30 @@ echo | openssl s_client -showcerts -CAfile $TMPFILE -connect $OPENSSL_URL -serve
 
 rm -f $TMPFILE
 
+# Get all CN/SANs and compare it with given FQDN
+# https://stackoverflow.com/questions/20983217
+# https://gist.github.com/stevenringo/2fe5000d8091f800aee4bb5ed1e800a6
+CN=$(openssl x509 -in $CERTTMPFILE -noout -subject -nameopt multiline | awk '/commonName/ {print $NF}')
+SANS=$(openssl x509 -in $CERTTMPFILE -noout -text|grep -oP '(?<=DNS:|IP Address:)[^,]+'|sort -uV)
+echo "INFO: Found CN ${CN}"
+if [[ -n $SANS ]]; then
+  echo "INFO: Found SANS: ${SANS}"
+fi
+if [[ $CN = *"${STRIPPED_CATTLE_SERVER_NOPORT}"* ]]; then
+  echo "OK: ${STRIPPED_CATTLE_SERVER_NOPORT} is equal to ${CN}"
+elif [[ $SANS = *"${STRIPPED_CATTLE_SERVER_NOPORT}"* ]]; then
+  echo "OK: ${STRIPPED_CATTLE_SERVER_NOPORT} was found in ${SANS}"
+else
+  echo "ERR: ${STRIPPED_CATTLE_SERVER_NOPORT} was not found in CN or SANs"
+fi
+
+if [[ -n $CERTCHAIN ]]; then
+  echo "Trying to get intermediates to complete chain and writing to /certs/fullchain.pem"
+  echo "Note: this usually only works when using certificates signed by a recognized Certificate Authority"
+  cert-chain-resolver -o /certs/fullchain.pem $CERTTMPFILE
+fi
+
 IFS=""
-echo $(openssl x509 -inform pem -noout -text -certopt no_signame,no_pubkey,no_sigdump,no_aux,no_extensions < $CERTTMPFILE)
-echo $(openssl x509 -inform pem -noout -text < $CERTTMPFILE | grep -A1 "Subject Alternative Name")
+echo $(openssl x509 -inform pem -noout -text -certopt no_signame,no_pubkey,no_sigdump,no_aux,no_extensions -in $CERTTMPFILE)
 
 rm -f $CERTTMPFILE
