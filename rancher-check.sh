@@ -83,9 +83,9 @@ fi
 if [[ $CN = *"*"* ]]; then
   echo "OK: Wildcard certificate found (${CN})"
 elif [[ $CN = *"${STRIPPED_CATTLE_SERVER_NOPORT}"* ]]; then
-  echo "OK: ${STRIPPED_CATTLE_SERVER_NOPORT} is equal to ${CN}"
+  echo "OK: ${STRIPPED_CATTLE_SERVER_NOPORT} is equal to CN (${CN})"
 elif [[ $SANS = *"${STRIPPED_CATTLE_SERVER_NOPORT}"* ]]; then
-  echo "OK: ${STRIPPED_CATTLE_SERVER_NOPORT} was found in ${SANS}"
+  echo "OK: ${STRIPPED_CATTLE_SERVER_NOPORT} was found in SANs (${SANS})"
 else
   echo "ERR: ${STRIPPED_CATTLE_SERVER_NOPORT} was not found in CN or SANs"
 fi
