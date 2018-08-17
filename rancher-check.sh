@@ -71,23 +71,24 @@ echo | openssl s_client -showcerts -CAfile $TMPFILE -connect $OPENSSL_URL -serve
 
 rm -f $TMPFILE
 
-# Get all CN/SANs and compare it with given FQDN
+# Check if STRIPPED_CATTLE_SERVER_NOPORT is present in SANs
 # https://stackoverflow.com/questions/20983217
 # https://gist.github.com/stevenringo/2fe5000d8091f800aee4bb5ed1e800a6
 CN=$(openssl x509 -in $CERTTMPFILE -noout -subject -nameopt multiline | awk '/commonName/ {print $NF}')
-SANS=$(openssl x509 -in $CERTTMPFILE -noout -text|grep -oP '(?<=DNS:|IP Address:)[^,]+'|sort -uV)
+SANS=$(openssl x509 -in $CERTTMPFILE -noout -text|grep -oP '(?<=DNS:|IP Address:)[^,]+'|sort -uV | paste -sd " " -)
 echo "INFO: Found CN ${CN}"
-if [[ -n $SANS ]]; then
-  echo "INFO: Found SANS: ${SANS}"
+if [[ -z $SANS ]]; then
+  echo "ERR: No Subject Alternative Name(s) (SANs) found"
+  echo "ERR: Certificate will not be valid in applications that dropped support for commonName (CN) matching (Chrome/Firefox amongst others)"
+else
+  echo "INFO: Found Subject Alternative Name(s) (SANs): ${SANS}"
 fi
-if [[ $CN = *"*"* ]]; then
-  echo "OK: Wildcard certificate found (${CN})"
-elif [[ $CN = *"${STRIPPED_CATTLE_SERVER_NOPORT}"* ]]; then
-  echo "OK: ${STRIPPED_CATTLE_SERVER_NOPORT} is equal to CN (${CN})"
+if [[ $SANS = *"*"* ]]; then
+  echo "OK: Wildcard certificate found in SANs (${SANS})"
 elif [[ $SANS = *"${STRIPPED_CATTLE_SERVER_NOPORT}"* ]]; then
   echo "OK: ${STRIPPED_CATTLE_SERVER_NOPORT} was found in SANs (${SANS})"
 else
-  echo "ERR: ${STRIPPED_CATTLE_SERVER_NOPORT} was not found in CN or SANs"
+  echo "ERR: ${STRIPPED_CATTLE_SERVER_NOPORT} was not found in SANs"
 fi
 
 if [[ -n $CERTCHAIN ]]; then
