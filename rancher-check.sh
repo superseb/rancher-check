@@ -94,7 +94,7 @@ if [[ -n $CERTCHAIN ]]; then
   echo "Trying to get intermediates to complete chain and writing to /certs/fullchain.pem"
   echo "Note: this usually only works when using certificates signed by a recognized Certificate Authority"
   cert-chain-resolver -o /certs/fullchain.pem $CERTTMPFILE
-  echo "Showing openssl s_client output
+  echo "Showing openssl s_client output"
   echo | openssl s_client -CAfile $TMPFILE -connect $OPENSSL_URL -servername $STRIPPED_CATTLE_SERVER_NOPORT
 fi
 
