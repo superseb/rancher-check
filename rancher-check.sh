@@ -63,13 +63,12 @@ do
     'Verify return code: 0 (ok)')   echo "OK: Certificate chain is complete";;
     'Verify return code: '*)    echo "ERR: Certificate chain is not complete" && export CERTCHAIN=1;;
     esac
-done < <(echo | openssl s_client -CAfile $TMPFILE -connect $OPENSSL_URL -servername $STRIPPED_CATTLE_SERVER_NOPORT)
+done < <(echo | openssl s_client -CAfile $TMPFILE -connect $OPENSSL_URL -servername $STRIPPED_CATTLE_SERVER_NOPORT 2>/dev/null)
 
 IFS=""
 CERTTMPFILE=$(mktemp)
 echo | openssl s_client -showcerts -CAfile $TMPFILE -connect $OPENSSL_URL -servername $STRIPPED_CATTLE_SERVER_NOPORT 2>/dev/null | openssl x509 -outform PEM > $CERTTMPFILE
 
-rm -f $TMPFILE
 
 # Check if STRIPPED_CATTLE_SERVER_NOPORT is present in SANs
 # https://stackoverflow.com/questions/20983217
@@ -95,8 +94,11 @@ if [[ -n $CERTCHAIN ]]; then
   echo "Trying to get intermediates to complete chain and writing to /certs/fullchain.pem"
   echo "Note: this usually only works when using certificates signed by a recognized Certificate Authority"
   cert-chain-resolver -o /certs/fullchain.pem $CERTTMPFILE
+  echo "Showing openssl s_client output
+  echo | openssl s_client -CAfile $TMPFILE -connect $OPENSSL_URL -servername $STRIPPED_CATTLE_SERVER_NOPORT
 fi
 
 echo $(openssl x509 -inform pem -noout -text -certopt no_signame,no_pubkey,no_sigdump,no_aux,no_extensions -in $CERTTMPFILE)
 
+rm -f $TMPFILE
 rm -f $CERTTMPFILE
