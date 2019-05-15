@@ -11,6 +11,7 @@ command -v sed >/dev/null 2>&1 || { echo "sed is not installed. Exiting." >&2; e
 command -v cat >/dev/null 2>&1 || { echo "cat is not installed. Exiting." >&2; exit 1; }
 command -v openssl >/dev/null 2>&1 || { echo "openssl is not installed. Exiting." >&2; exit 1; }
 command -v sha256sum >/dev/null 2>&1 || { echo "sha256sum is not installed. Exiting." >&2; exit 1; }
+command -v cert-chain-resolver >/dev/null 2>&1 || { echo "cert-chain-resolver is not installed. Exiting." >&2; exit 1; }
 
 # Check if server-url is given
 if [ -z "$1" ]; then
